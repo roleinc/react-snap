@@ -1,6 +1,7 @@
 const puppeteer = require("puppeteer");
 const _ = require("highland");
 const url = require("url");
+const glob = require("glob-to-regexp");
 const mapStackTrace = require("sourcemapped-stacktrace-node").default;
 const path = require("path");
 const fs = require("fs");
@@ -142,6 +143,7 @@ const crawl = async opt => {
   } = opt;
   let shuttingDown = false;
   let streamClosed = false;
+  const exclude = options.exclude.map(g => glob(g, { extended: true, globstar: true}));
 
   const onSigint = () => {
     if (shuttingDown) {
@@ -173,7 +175,7 @@ const crawl = async opt => {
    * @returns {void}
    */
   const addToQueue = newUrl => {
-    const { hostname, search, hash, port } = url.parse(newUrl);
+    const { hostname, search, hash, port, pathname } = url.parse(newUrl);
     newUrl = newUrl.replace(`${search || ""}${hash || ""}`, "");
 
     // Ensures that only link on the same port are crawled
@@ -183,6 +185,7 @@ const crawl = async opt => {
     // we are converting both to string to be sure
     // Port can be null, therefore we need the null check
     const isOnAppPort = port && port.toString() === options.port.toString();
+    if (exclude.filter(regex => regex.test(pathname)).length > 0) return;
 
     if (hostname === "localhost" && isOnAppPort && !uniqueUrls.has(newUrl) && !streamClosed) {
       uniqueUrls.add(newUrl);
